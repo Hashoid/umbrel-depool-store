@@ -23,7 +23,7 @@
 # this file.
 #
 # Umbrel deltas (why this file differs from mod-btc/stack/docker-compose.yml):
-#   1. images: pinned ghcr.io/lstgms9/* (built multi-arch by the repo's
+#   1. images: pinned ghcr.io/hashoid/* (built multi-arch by the repo's
 #      release workflow) — Umbrel pulls, it never builds
 #   1b. the chain comes from the `bitcoin` dependency app (manifest
 #      `dependencies: [bitcoin]`), never from a second bitcoind in here
@@ -83,7 +83,7 @@ services:
   # wrapper inside the image targets the bitcoin app's node via env (BCLI_*), so the
   # same image also serves the regtest dev overlay.
   cln-payer:
-    image: ghcr.io/lstgms9/depool-cln:v0.2.2@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
+    image: ghcr.io/hashoid/depool-cln:v0.2.2@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
     command: >
       --network=bitcoin --lightning-dir=/root/.lightning-payer
       --bitcoin-datadir=/home/bitcoin/.bitcoin
@@ -106,7 +106,7 @@ services:
         hard: 524288
 
   cln-payee:
-    image: ghcr.io/lstgms9/depool-cln:v0.2.2@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
+    image: ghcr.io/hashoid/depool-cln:v0.2.2@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
     command: >
       --network=bitcoin --lightning-dir=/root/.lightning-payee
       --bitcoin-datadir=/home/bitcoin/.bitcoin
@@ -130,7 +130,7 @@ services:
 
   # local archival relay (loopback only — live shares ride the pool relay)
   relay:
-    image: ghcr.io/lstgms9/depool-relay:v0.2.2@sha256:8abcd5dc65c36ebbda0ddda7aed34ff3898af2ac374c28e87db2aed47c3e0bf3
+    image: ghcr.io/hashoid/depool-relay:v0.2.2@sha256:8abcd5dc65c36ebbda0ddda7aed34ff3898af2ac374c28e87db2aed47c3e0bf3
     volumes:
       - ${APP_DATA_DIR}/data/relay:/var/lib/strfry
     ports:
@@ -143,7 +143,7 @@ services:
 
   # ── the sharechain daemon — the bead DAG + payout commitment ──
   sharechaind:
-    image: ghcr.io/lstgms9/depool-sharechaind:v0.2.2@sha256:f4da7ba79255a65a3046fbd04cc6ce8d8a914f74cc28227ae2f64e58dfbfec95
+    image: ghcr.io/hashoid/depool-sharechaind:v0.2.2@sha256:f4da7ba79255a65a3046fbd04cc6ce8d8a914f74cc28227ae2f64e58dfbfec95
     cpus: 0.5
     environment:
       # the tenant bundle's values with the MAINNET network tag (spec: the
@@ -197,7 +197,7 @@ services:
         hard: 524288
 
   control:
-    image: ghcr.io/lstgms9/depool-control:v0.2.2@sha256:5b5b3794deb51c37d1dc41a413512a177f3aa01f30e4c3aca87affcc41a63a83
+    image: ghcr.io/hashoid/depool-control:v0.2.2@sha256:5b5b3794deb51c37d1dc41a413512a177f3aa01f30e4c3aca87affcc41a63a83
     environment:
       ORIGIN: https://hashoid.io
       # deterministic per-install (umbrelOS derives it from the store seed) —
@@ -253,7 +253,7 @@ services:
   # their own templates (spec §7.1 template sovereignty), shares join the
   # sharechain, blocks submit straight back to the network.
   stratum:
-    image: ghcr.io/lstgms9/depool-stratum:v0.2.2@sha256:38f185aed9db1571a449c2a6f4eb3b4da54e07c9fe6b166e851b3c88a611bc0b
+    image: ghcr.io/hashoid/depool-stratum:v0.2.2@sha256:38f185aed9db1571a449c2a6f4eb3b4da54e07c9fe6b166e851b3c88a611bc0b
     environment:
       STRATUM_PORT: "3333"
       CHAIN_RPC: http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}

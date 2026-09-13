@@ -2,7 +2,7 @@
 
 The depool node as a one-click Umbrel app. The whole UX is one line:
 
-> **Umbrel → Settings → (∔) Add store → paste `https://github.com/lstgms9/umbrel-depool-store` → Install "Depool Node"**
+> **Umbrel → Settings → (∔) Add store → paste `https://github.com/Hashoid/umbrel-depool-store` → Install "Depool Node"**
 
 Then:
 
@@ -44,7 +44,7 @@ Umbrel bits:
 
 | Delta | Why |
 |---|---|
-| images `ghcr.io/lstgms9/depool-*` (pinned) + upstream `bitcoin/bitcoin:29` | umbrelOS pulls, never builds. Multi-arch (amd64 + arm64) manifest lists |
+| images `ghcr.io/hashoid/depool-*` (pinned) + upstream `bitcoin/bitcoin:29` | umbrelOS pulls, never builds. Multi-arch (amd64 + arm64) manifest lists |
 | volumes → `${APP_DATA_DIR}/data/...` | umbrelOS validates app data lives under `APP_DATA_DIR/data`; uninstall/backup behave |
 | `/modules` baked into depool-sharechaind | an Umbrel box has no platform checkout; CI assembles the SAME reduced tree the tenant bundle ships (`routes.js /stack/bundle`) |
 | `HARDWARE_ID: hw-umbrel-${APP_SEED}` | umbrelOS exports `APP_SEED` into app compose — deterministic per install, so claim-first pairing works untouched |
@@ -73,7 +73,7 @@ the live `bitcoin` cohort is never touched.
 ## Releasing new images
 
 **CI is the pipeline** (the dev box's fine-grained PAT cannot write ghcr
-packages; the workflow's GITHUB_TOKEN can): GitHub → lstgms9/umbrel-depool-store
+packages; the workflow's GITHUB_TOKEN can): GitHub → Hashoid/umbrel-depool-store
 → Actions → **release** → Run workflow with the version. Since v0.2.0 there
 is no images tarball dependency — buildx builds `linux/amd64` **and**
 `linux/arm64` FROM SOURCE (qemu emulates the Pi; strfry's arm64 compile is
@@ -85,7 +85,7 @@ the slow step), pushes manifest lists, rewrites the compose pins and commits
 
 **Visibility:** packages pushed by the workflow came out **public** —
 verified with an anonymous manifest pull (v0.1.0, 2026-09-05). If a future
-release lands private, flip it at github.com/lstgms9?tab=packages →
+release lands private, flip it at github.com/Hashoid?tab=packages →
 Package settings → Change visibility.
 
 `release/build-images.sh` (v0.1.0 dev-box fallback, amd64 tarball path) is

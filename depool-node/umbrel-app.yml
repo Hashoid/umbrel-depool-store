@@ -30,11 +30,11 @@ dependencies:
   - bitcoin
 developer: Depool
 website: https://depool.org
-repo: https://github.com/lstgms9/umbrel-depool-store
+repo: https://github.com/Hashoid/umbrel-depool-store
 support: https://depool.org
 port: 28700
 path: ""
 gallery:
   - 1.jpg
 submitter: Depool
-submission: https://github.com/lstgms9/umbrel-depool-store
+submission: https://github.com/Hashoid/umbrel-depool-store

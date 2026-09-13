@@ -52,9 +52,9 @@ const images = [...compose.matchAll(/^\s+image:\s*(\S+)\s*$/gm)].map((m) => m[1]
 for (const img of images) {
   // the official store's rule: tag AND digest, together, and the digest is the
   // MANIFEST LIST so an arm64 pull resolves through it
-  const ok = /^ghcr\.io\/lstgms9\/depool-[a-z0-9-]+:v[0-9.]+@sha256:[0-9a-f]{64}$/.test(img);
+  const ok = /^ghcr\.io\/hashoid\/depool-[a-z0-9-]+:v[0-9.]+@sha256:[0-9a-f]{64}$/.test(img);
   t('image allowed + pinned tag@sha256: ' + img, ok);
-  const m = /ghcr\.io\/lstgms9\/(depool-[a-z0-9-]+):([^@]+)@(sha256:[0-9a-f]{64})/.exec(img);
+  const m = /ghcr\.io\/hashoid\/(depool-[a-z0-9-]+):([^@]+)@(sha256:[0-9a-f]{64})/.exec(img);
   if (m) t('image is in the lock: ' + m[1], lock[m[1]] && lock[m[1]].tag === m[2] && lock[m[1]].digest === m[3]);
 }
 // ⚠ NO CHAIN IMAGE HERE (Damon 2026-09-13): the chain is the user's Bitcoin
@@ -124,7 +124,7 @@ for (const name of Object.keys(lock)) {
   // bootstrap is overlay-only (the mainnet app has no bootstrap service) —
   // its pin lives in the regtest overlay, everything else in the app compose
   const target = name === 'depool-bootstrap' ? overlay : compose;
-  t('lock entry pinned: ' + name, new RegExp('ghcr\\.io/lstgms9/' + name + ':' + lock[name].tag).test(target));
+  t('lock entry pinned: ' + name, new RegExp('ghcr\\.io/hashoid/' + name + ':' + lock[name].tag).test(target));
 }
 t('lock carries six images', Object.keys(lock).length === 6);
 

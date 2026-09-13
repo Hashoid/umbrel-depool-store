@@ -5,7 +5,7 @@
 #   ./build-images.sh v0.1.0
 #
 # 1. retags the dev stack's built images (docker-compose project depool-stack
-#    + depool-forkd-blake2b) to ghcr.io/lstgms9/depool-*:<version> and pushes
+#    + depool-forkd-blake2b) to ghcr.io/hashoid/depool-*:<version> and pushes
 # 2. bakes the three derived Umbrel images (see Dockerfile.*-umbrel) from
 #    those same bytes and pushes them
 # 3. rewrites the version pins in ../depool-node/docker-compose.yml and
@@ -18,7 +18,7 @@ VER=${1:?usage: build-images.sh <version>}
 STORE=$(cd "$(dirname "$0")/.." && pwd)
 MODS=${MODULES_DIR:-/home/damon/platform/modules}
 BUILD=$STORE/release/build
-GH=ghcr.io/lstgms9
+GH=ghcr.io/hashoid
 SRC=$MODS/mod-btc/stack
 
 command -v docker >/dev/null || { echo "docker missing"; exit 1; }
@@ -63,7 +63,7 @@ bake bootstrap-umbrel   depool-stack-cln-payer:latest   depool-bootstrap
 
 # ── 4. pin: compose version pins + images-lock.json (digests) ──
 for svc in depool-forkd-blake2b depool-cln depool-relay depool-stratum depool-sharechaind depool-control depool-bootstrap; do
-  sed -i "s#ghcr.io/lstgms9/$svc:v[0-9.]*#ghcr.io/lstgms9/$svc:$VER#g" "$STORE/depool-node/docker-compose.yml"
+  sed -i "s#ghcr.io/hashoid/$svc:v[0-9.]*#ghcr.io/hashoid/$svc:$VER#g" "$STORE/depool-node/docker-compose.yml"
 done
 {
   echo '{'
