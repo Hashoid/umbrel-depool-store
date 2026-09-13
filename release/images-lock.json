@@ -1,26 +1,26 @@
 {
  "depool-cln": {
-  "tag": "v0.2.8",
+  "tag": "v0.2.9",
   "digest": "sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb"
  },
  "depool-bootstrap": {
-  "tag": "v0.2.8",
+  "tag": "v0.2.9",
   "digest": "sha256:dc1e239c93d3a7e4f4359f8fc38b6d1b9f9185c6404f564055ae31ad8f73223e"
  },
  "depool-sharechaind": {
-  "tag": "v0.2.8",
+  "tag": "v0.2.9",
   "digest": "sha256:6b9f5832408d2a5dea7b48b4cd0a85b11ae8b5a132330b68b9dfb8209225d3dc"
  },
  "depool-control": {
-  "tag": "v0.2.8",
-  "digest": "sha256:68893f94447d6171009fb85e721bd8006d6c5324adfde04092ccab8a70a53b31"
+  "tag": "v0.2.9",
+  "digest": "sha256:f17b33af51a5b6e1a5fa1df727f8a3a1dfde91bd3f066d86f7aaddd48b54bb5d"
  },
  "depool-stratum": {
-  "tag": "v0.2.8",
+  "tag": "v0.2.9",
   "digest": "sha256:b933b0716a42431016f12206fd74b579b239413501d2ab19a3d490091cad54c1"
  },
  "depool-relay": {
-  "tag": "v0.2.8",
+  "tag": "v0.2.9",
   "digest": "sha256:8abcd5dc65c36ebbda0ddda7aed34ff3898af2ac374c28e87db2aed47c3e0bf3"
  }
 }
