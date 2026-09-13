@@ -2,7 +2,7 @@ manifestVersion: 1
 id: depool-node
 category: bitcoin
 name: Depool Node
-version: 0.2.6
+version: 0.2.7
 tagline: Mine with your own node — no pool in the middle
 description: >-
   Mine Bitcoin with your own node, no pool in the middle. This app runs a

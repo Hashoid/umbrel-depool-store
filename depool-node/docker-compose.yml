@@ -148,7 +148,7 @@ services:
     environment:
       # the tenant bundle's values with the MAINNET network tag (spec: the
       # network names the chain being mined; default "bitcoin")
-      RELAYS: wss://relay.hashoid.io
+      RELAYS: wss://relay.hashoid.io/ws/
       NETWORK: bitcoin
       DEPOOL_MODE: smooth
       DEPOOL_POWER: low
