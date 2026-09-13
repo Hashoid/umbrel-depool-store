@@ -2,7 +2,7 @@ manifestVersion: 1
 id: depool-node
 category: bitcoin
 name: Depool Node
-version: 0.2.3
+version: 0.2.4
 tagline: Mine with your own node — no pool in the middle
 description: >-
   Mine Bitcoin with your own node, no pool in the middle. This app runs a
@@ -23,7 +23,10 @@ description: >-
   the Mine page at hashoid.io. Your shares are signed by this node; payouts
   settle over Lightning to your own wallet.
 releaseNotes: >-
-  The app opens to its own page: your node's live status (chain, peers, sync)
+  The app now follows YOUR node's network instead of assuming mainnet: against
+  a regtest or testnet node the Lightning node used to refuse to start, which
+  cascaded into the daemon having no payout address. (Store-side fix — the
+  images are unchanged.) The app opens to its own page: your node's live status (chain, peers, sync)
   and the exact pool URL for your ASIC, with the claim link. It also now
   builds windows and submits real blocks on YOUR node — the block builder had
   only ever spoken the fork chain's header format, so every block a stock

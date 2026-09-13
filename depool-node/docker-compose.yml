@@ -85,7 +85,7 @@ services:
   cln-payer:
     image: ghcr.io/hashoid/depool-cln:v0.2.3@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
     command: >
-      --network=bitcoin --lightning-dir=/root/.lightning-payer
+      --network=${CLN_NET:-bitcoin} --lightning-dir=/root/.lightning-payer
       --bitcoin-datadir=/home/bitcoin/.bitcoin
       --bitcoin-cli=/usr/local/bin/bitcoin-cli
       --bitcoin-rpcuser=${APP_BITCOIN_RPC_USER} --bitcoin-rpcpassword=${APP_BITCOIN_RPC_PASS}
@@ -108,7 +108,7 @@ services:
   cln-payee:
     image: ghcr.io/hashoid/depool-cln:v0.2.3@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
     command: >
-      --network=bitcoin --lightning-dir=/root/.lightning-payee
+      --network=${CLN_NET:-bitcoin} --lightning-dir=/root/.lightning-payee
       --bitcoin-datadir=/home/bitcoin/.bitcoin
       --bitcoin-cli=/usr/local/bin/bitcoin-cli
       --bitcoin-rpcuser=${APP_BITCOIN_RPC_USER} --bitcoin-rpcpassword=${APP_BITCOIN_RPC_PASS}
@@ -165,8 +165,8 @@ services:
       CHAIN_KIND: sha256d
       BLOCK_TRIES: "500000"
       REWARD_SATS: "30000"
-      CLN_RPC: /run/cln/bitcoin/lightning-rpc
-      CLN_PAYEE_RPC: /run/cln-payee/bitcoin/lightning-rpc
+      CLN_RPC: /run/cln/${CLN_NET:-bitcoin}/lightning-rpc
+      CLN_PAYEE_RPC: /run/cln-payee/${CLN_NET:-bitcoin}/lightning-rpc
       # ⚠ THE BUILDER ROLE IS ON (uniMaster ruling 2026-09-13): a lined daemon
       # that is not the builder mints beads and NEVER closes a window — no
       # block, no payout, ever. On this box the daemon IS the miner's own
@@ -214,7 +214,9 @@ services:
       CHAIN_RPC_URL: http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
       CHAIN_RPC_USER: ${APP_BITCOIN_RPC_USER}
       CHAIN_RPC_PASS: ${APP_BITCOIN_RPC_PASS}
-      CLN_NET: bitcoin
+      # from the app's own exports.sh, which maps the NODE's network
+      # (APP_BITCOIN_NETWORK) into CLN's vocabulary
+      CLN_NET: ${CLN_NET:-bitcoin}
       CLN_PAYER_DIR: /run/cln
       # the ASIC-facing host port (the app page prints it; the container's own
       # listener stays 3333)

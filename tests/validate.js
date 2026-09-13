@@ -123,8 +123,15 @@ t('six depool image lines, five images, NO bundled bitcoin node',
 {
   const appVer = 'v' + (/^version:\s*(\S+)/m.exec(app) || [])[1];
   const lockTags = [...new Set(Object.values(lock).map((l) => l.tag))];
-  t('app version matches the locked image tag (' + appVer + ')',
-    lockTags.length === 1 && lockTags[0] === appVer, 'app ' + appVer + ' vs lock ' + lockTags.join(','));
+  // ⚠ the app version may run AHEAD of the image tag: the app dir carries
+// store-side fixes (the network mapping below) that need no new image. What
+// must never happen is a LOCK whose entries disagree — that is a half-released
+// app — or an app older than the images it pins.
+const semver = (v) => String(v).replace('v', '').split('.').map(Number);
+const cmp = (a, b) => { const x = semver(a), y = semver(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
+t('every lock entry carries the SAME image tag', lockTags.length === 1, lockTags.join(','));
+t('the app version is not older than the images it pins (' + appVer + ' >= ' + lockTags[0] + ')',
+    cmp(appVer, lockTags[0]) >= 0, 'app ' + appVer + ' vs lock ' + lockTags.join(','));
 }
 for (const name of Object.keys(lock)) {
   // bootstrap is overlay-only (the mainnet app has no bootstrap service) —
@@ -154,6 +161,19 @@ t('every chain rail points at the dependency node contract',
   /CHAIN_RPC_PASS:\s*\$\{APP_BITCOIN_RPC_PASS\}/.test(compose));
 t('the dependency node\'s datadir is mounted read-only (its own contract)',
   /\$\{APP_BITCOIN_DATA_DIR\}:\/home\/bitcoin\/\.bitcoin:ro/.test(compose));
+// ⚠ THE NODE'S NETWORK DECIDES CLN'S NETWORK (rig finding, 2026-09-13): the
+// compose used to say --network=bitcoin outright, so against a regtest node
+// CLN died with "Wrong network! ... we expect 'main'" and everything
+// downstream of it (the payout address, the daemon) went with it. The mapping
+// lives in the app's own exports.sh, sourced by umbrelOS after the dependency's.
+{
+  const exp = R('depool-node/exports.sh');
+  t('the app ships an exports.sh (umbrelOS sources it after the dependency\'s)', /APP_BITCOIN_NETWORK/.test(exp));
+  t('…and it maps the NODE network into the CLN vocabulary (mainnet to bitcoin)',
+    /mainnet\)\s*EXPORTED_CLN_NET="bitcoin"/.test(exp) || /mainnet\)\s*EXPORTED_CLN_NET=\"bitcoin\"/.test(exp));
+  t('…so CLN is never pinned to one network in the compose',
+    /--network=\$\{CLN_NET:-bitcoin\}/.test(compose) && !/--network=bitcoin\b/.test(live(compose)));
+}
 t('CLN talks to that node (rpc connect, user and password from the contract)',
   /--bitcoin-rpcconnect=\$\{APP_BITCOIN_NODE_IP\}/.test(compose) &&
   /--bitcoin-rpcuser=\$\{APP_BITCOIN_RPC_USER\}/.test(compose));
@@ -178,7 +198,8 @@ t('…and the sidecar can publish it: the data volume it writes is the daemon\'s
 t('sharechaind publishes to the pool relay', /RELAYS:\s*wss:\/\/relay\.hashoid\.io/.test(shareBlock));
 t('sharechaind on the BITCOIN network tag (spec default)', /NETWORK:\s*bitcoin/.test(shareBlock));
 t('sharechaind speaks plain sha256d (no fork binding)', /CHAIN_KIND:\s*sha256d/.test(shareBlock));
-t('CLN rpc paths on the bitcoin network dir', /CLN_RPC:\s*\/run\/cln\/bitcoin\/lightning-rpc/.test(shareBlock));
+t('CLN rpc paths follow the network dir (bitcoin by default, else the node network)',
+  /CLN_RPC:\s*\/run\/cln\/\$\{CLN_NET:-bitcoin\}\/lightning-rpc/.test(shareBlock));
 // ⚠ 3333 is taken in the official store's host-port space (bleskomat-server),
 // so the HOST side moves; the container keeps its own listener.
 t('stratum is the LAN endpoint on 23333 (host) → 3333 (container)', /0\.0\.0\.0:23333:3333/.test(compose));
@@ -191,7 +212,7 @@ t('control reaches the dependency node over RPC, not docker exec',
   /CHAIN_RPC_URL:\s*http:\/\/\$\{APP_BITCOIN_NODE_IP\}:\$\{APP_BITCOIN_RPC_PORT\}/.test(ctl) &&
   /CHAIN_RPC_USER:\s*\$\{APP_BITCOIN_RPC_USER\}/.test(ctl) &&
   !/CHAIN_SVC:\s*bitcoind/.test(ctl));
-t('control reads CLN through its own mounted socket', /CLN_NET:\s*bitcoin/.test(ctl) &&
+t('control reads CLN through its own mounted socket', /CLN_NET:\s*\$\{CLN_NET:-bitcoin\}/.test(ctl) &&
   /CLN_PAYER_DIR:\s*\/run\/cln/.test(ctl) && /\/run\/cln:\/run\/cln|data\/cln-payer:\/run\/cln/.test(ctl));
 t('control tells the page the ASIC host port (23333 on Umbrel)', /STRATUM_PORT:\s*"23333"/.test(ctl));
 t('app_proxy routes the umbrelOS Open button to control', /APP_HOST:\s*depool-node_control_1/.test(compose) && /APP_PORT:\s*"28700"/.test(compose));
