@@ -50,7 +50,7 @@ services:
   # the one-shot: fund the payer, open payer→payee (the app has no such
   # service — mainnet onboarding is the user depositing real sats)
   bootstrap:
-    image: ghcr.io/hashoid/depool-bootstrap:v0.2.5@sha256:dc1e239c93d3a7e4f4359f8fc38b6d1b9f9185c6404f564055ae31ad8f73223e
+    image: ghcr.io/hashoid/depool-bootstrap:v0.2.6@sha256:dc1e239c93d3a7e4f4359f8fc38b6d1b9f9185c6404f564055ae31ad8f73223e
     entrypoint: ["/bin/sh", "/mod-btc/stack/bootstrap.sh"]
     environment:
       BOOTSTRAP_BCLI_ARGS: "-rpcconnect=bitcoind -rpcport=18443 -rpcuser=depool -rpcpassword=depool"
