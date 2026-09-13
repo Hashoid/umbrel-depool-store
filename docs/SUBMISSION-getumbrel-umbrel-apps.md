@@ -11,10 +11,11 @@ current canon.
 ## 1 · What actually goes outward
 
 One **new top-level directory** in a fork of `getumbrel/umbrel-apps`, one
-branch, one PR against `master`:
+branch, one PR against `master` — **materialised and parked at
+`submission/`** (see `submission/README.md` for the rule-by-rule map):
 
 ```
-depool-node/
+submission/depool-node/     → copies into the fork as depool-node/
   umbrel-app.yml
   docker-compose.yml
   exports.sh
@@ -22,7 +23,13 @@ depool-node/
   data/cln-payee/.gitkeep
   data/miner/.gitkeep
   data/relay/.gitkeep
+submission/PR-BODY.md       → pastes into the PR description
 ```
+
+`tests/validate.js` now gates that artifact: required manifest fields, `gallery: []`
++ `releaseNotes: ""`, no committed image assets, no `icon`, no docker socket,
+no `build:`, the same services and pinned images as the app we actually ship,
+and committed `.gitkeep` sources — 111/111.
 
 PR title (their template): **`Add Depool Node`**
 

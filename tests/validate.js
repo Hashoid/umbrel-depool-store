@@ -245,5 +245,41 @@ t('control.env is copied to /depool/.env by its Dockerfile',
 t('cln wrapper target is env-driven (one image, mainnet + regtest overlay)',
   /BCLI_CONNECT/.test(R('release/Dockerfile.cln-umbrel')));
 
+// ── the getumbrel/umbrel-apps submission artifact ───────────────────────────
+// submission/ is a parked copy for Damon to approve, and the rules it must
+// meet are THEIRS (getumbrel/umbrel-apps: lint-apps.mjs + the packaging
+// skill), not ours — so it is checked here against the rules that differ from
+// a community store: gallery [] and releaseNotes "" for a NEW submission, no
+// committed image assets, the same services and pinned images as the app we
+// actually ship, and no docker socket / build: (both hard errors there).
+{
+  const SUB = path.join(__dirname, '..', 'submission', 'depool-node');
+  const files = fs.existsSync(SUB) ? fs.readdirSync(SUB) : [];
+  t('submission: the app dir exists with the two unconditional files',
+    files.includes('umbrel-app.yml') && files.includes('docker-compose.yml'), files.join(','));
+  t('submission: no committed image assets (Umbrel hosts final assets; the PR body carries them)',
+    !files.some((f) => /\.(jpg|jpeg|png|svg|webp)$/i.test(f)), files.join(','));
+  const yml = R('submission/depool-node/umbrel-app.yml');
+  const req = ['manifestVersion', 'id', 'category', 'name', 'version', 'tagline', 'description', 'releaseNotes',
+    'developer', 'website', 'dependencies', 'repo', 'support', 'port', 'gallery', 'path', 'submitter', 'submission'];
+  t('submission: manifest carries every required field',
+    req.every((k) => new RegExp('^' + k + ':', 'm').test(yml)), req.filter((k) => !new RegExp('^' + k + ':', 'm').test(yml)).join(','));
+  t('submission: gallery is [] and releaseNotes is "" (their rules for a NEW app)',
+    /^gallery: \[\]/m.test(yml) && /^releaseNotes: ""/m.test(yml));
+  t('submission: id matches the directory', /^id: depool-node$/m.test(yml));
+  t('submission: no icon (Umbrel hosts it)', !/^icon:/m.test(yml));
+  const subCompose = R('submission/depool-node/docker-compose.yml');
+  t('submission: no docker socket and no build: (hard errors in their linter)',
+    !/docker\.sock/.test(subCompose) && !/^\s+build:/m.test(subCompose));
+  const storeImgs = (R('depool-node/docker-compose.yml').match(/image: \S+/g) || []).sort();
+  const subImgs = (subCompose.match(/image: \S+/g) || []).sort();
+  t('submission: ships the SAME services and pinned images as the app we run',
+    JSON.stringify(storeImgs) === JSON.stringify(subImgs), subImgs.length + ' vs ' + storeImgs.length);
+  t('submission: every image carries a tag AND a manifest-list digest',
+    subImgs.length > 0 && subImgs.every((i) => /:v[0-9.]+@sha256:[0-9a-f]{64}$/.test(i)));
+  t('submission: bind-mount sources are committed (.gitkeep)',
+    fs.readdirSync(path.join(SUB, 'data')).every((d) => fs.existsSync(path.join(SUB, 'data', d, '.gitkeep'))));
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

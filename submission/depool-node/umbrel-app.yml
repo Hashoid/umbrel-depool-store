@@ -1,0 +1,39 @@
+manifestVersion: 1
+id: depool-node
+category: bitcoin
+name: Depool Node
+version: 0.2.9
+tagline: Mine with your own node — no pool in the middle
+description: >-
+  Mine Bitcoin with your own node and no pool in the middle. This app turns
+  your Umbrel into the pool itself: a Stratum endpoint for your ASIC, the
+  depool share daemon that builds the blocks, a local share relay, and the
+  Lightning wallet your payouts land in.
+
+
+  IT USES YOUR BITCOIN NODE. There is no second copy of the blockchain here:
+  the app requires the Bitcoin Node app and reads block templates from it
+  (getblocktemplate). A pruned node is fine — mining only needs the tip.
+
+
+  SET-UP. Install Bitcoin Node first (Umbrel offers to), then open this app.
+  Its page shows your node's live status and the exact pool URL to type into
+  your ASIC — this device's address on port 23333. Claim the box on the Mine
+  page at hashoid.io, then point your miner at it. Your shares are signed by
+  this node, and each block pays the address the node declares, straight from
+  the coinbase — no pool wallet in between.
+releaseNotes: ""
+
+developer: Depool
+website: https://depool.org
+dependencies:
+  - bitcoin
+repo: https://github.com/Hashoid/umbrel-depool-store
+support: https://depool.org
+
+port: 28700
+gallery: []
+path: ""
+
+submitter: Depool
+submission: https://github.com/Hashoid/umbrel-depool-store
