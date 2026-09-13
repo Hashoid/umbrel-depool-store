@@ -27,10 +27,16 @@ t('store declares id: depool', /id:\s*"depool"/.test(store));
 const appId = (/\nid:\s*(\S+)/.exec(app) || [])[1];
 t('app id starts with the store id (umbrel rule)', appId === 'depool-node', appId);
 t('folder name matches the app id', fs.existsSync(path.join(__dirname, '..', appId)));
-for (const f of ['manifestVersion: 1', "version: 0.2.2", 'tagline:', 'description:', 'developer:', 'website:', 'repo:', 'port:', 'category: bitcoin']) {
+// ⚠ the VERSION LITERAL is not asserted here on purpose: the release workflow
+// rewrites the lock + compose pins from the tag it was dispatched with, so a
+// hardcoded "version: 0.2.2" made every bump a red gate for the wrong reason.
+// The real contract — the app version IS the tag the images carry — is the
+// lock comparison below.
+for (const f of ['manifestVersion: 1', 'tagline:', 'description:', 'developer:', 'website:', 'repo:', 'port:', 'category: bitcoin']) {
   t('umbrel-app.yml has ' + f.replace(/:$/, ''), app.includes(f));
 }
 t('manifest port is the control API (28700)', /port:\s*28700/.test(app));
+t('manifest declares a semantic version', /^version:\s*\d+\.\d+\.\d+\s*$/m.test(app), (/^version:.*$/m.exec(app) || [''])[0]);
 t('icon exists', fs.existsSync(path.join(__dirname, '..', appId, appId + '.svg')));
 t('gallery shot exists', fs.existsSync(path.join(__dirname, '..', appId, '1.jpg')));
 t('tagline is the no-pool-in-the-middle line', app.includes('no pool in the middle'));

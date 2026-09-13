@@ -2,7 +2,7 @@ manifestVersion: 1
 id: depool-node
 category: bitcoin
 name: Depool Node
-version: 0.2.2
+version: 0.2.3
 tagline: Mine with your own node — no pool in the middle
 description: >-
   Mine Bitcoin with your own node, no pool in the middle. This app runs a
@@ -16,16 +16,18 @@ description: >-
   your node is pruned that is fine — mining only needs the tip.
 
 
-  SET-UP: install Bitcoin Node first (Umbrel asks you to), open this app and
-  point your ASIC's pool URL at this box's LAN address on port 3333 — the
-  app's own page shows the exact address and the live status. Then claim the
-  box on the Mine page at hashoid.io. Your shares are signed by this node;
-  payouts settle over Lightning to your own wallet.
+  SET-UP: install Bitcoin Node first (Umbrel asks you to), then open this app.
+  Its page shows your node's live status and the exact pool URL to type into
+  your ASIC — this box's LAN address on port 23333 (3333 belongs to another
+  app in the store's host-port space, so the app uses 23333). Claim the box on
+  the Mine page at hashoid.io. Your shares are signed by this node; payouts
+  settle over Lightning to your own wallet.
 releaseNotes: >-
-  Mainnet: the node now mines real Bitcoin and settles real-sats Lightning
-  payouts. Full validation on a pruned chain, multi-arch images (arm64
-  Raspberry Pis included), and one Bitcoin chain for both mining templates
-  and Lightning.
+  The app opens to its own page: your node's live status (chain, peers, sync)
+  and the exact pool URL for your ASIC, with the claim link. It also now
+  builds windows and submits real blocks on YOUR node — the block builder had
+  only ever spoken the fork chain's header format, so every block a stock
+  Bitcoin node was sent came back refused. Multi-arch (arm64 included).
 dependencies:
   - bitcoin
 developer: Depool
