@@ -167,6 +167,18 @@ services:
       REWARD_SATS: "30000"
       CLN_RPC: /run/cln/bitcoin/lightning-rpc
       CLN_PAYEE_RPC: /run/cln-payee/bitcoin/lightning-rpc
+      # ⚠ THE BUILDER ROLE IS ON (uniMaster ruling 2026-09-13): a lined daemon
+      # that is not the builder mints beads and NEVER closes a window — no
+      # block, no payout, ever. On this box the daemon IS the miner's own
+      # builder (template sovereignty, §7.1) and it is the only lined daemon
+      # here, so the one-builder-per-line law holds.
+      LINE_BUILD: "1"
+      # ⚠ AND THE BEAD MUST NAME AN ADDRESS (same ruling): the daemon refuses to
+      # boot without one and no compose can know it — it is minted at runtime
+      # from the box's own CLN wallet. The control sidecar mints it and writes
+      # it to the shared data dir (/data/self-payout-addr, which every box has);
+      # this line is the OVERRIDE for a user who wants a specific address.
+      SELF_PAYOUT_ADDR: ${SELF_PAYOUT_ADDR:-}
     volumes:
       - ${APP_DATA_DIR}/data/miner:/data
       - ${APP_DATA_DIR}/data/cln-payer:/run/cln

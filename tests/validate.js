@@ -157,6 +157,18 @@ t('no bootstrap service in the app (mainnet onboarding = user deposits)', !/^  b
 const sc = compose.indexOf('sharechaind:');
 const shareBlock = compose.slice(sc, compose.indexOf('control:'));
 t('sharechaind is a NODE role (the ASIC does the hashing)', /DEPOOL_GRIND:\s*"0"/.test(shareBlock));
+// ⚠ THE BUILDER ROLE AND THE PAYOUT ADDRESS (uniMaster ruling 2026-09-13):
+// the daemon closes a window ONLY when LINE_BUILD=1 — without it a box mints
+// beads forever and NEVER finds a block, so no payout ever happens; and it
+// refuses to boot at all without SELF_PAYOUT_ADDR, which no compose can know
+// (it is minted at runtime from the box's own CLN wallet, and the sidecar
+// writes it to the shared /data dir — umbrelOS gives it no Docker socket to
+// hand a running container a new env, so the file is the only wire here).
+t('the daemon IS the builder — it closes windows on this box (LINE_BUILD=1)',
+  /LINE_BUILD:\s*"1"/.test(shareBlock));
+t('the settlement address is declared and user-overridable', /SELF_PAYOUT_ADDR:\s*\$\{SELF_PAYOUT_ADDR:-\}/.test(shareBlock));
+t('…and the sidecar can publish it: the data volume it writes is the daemon\'s /data',
+  /\$\{APP_DATA_DIR\}\/data\/miner:\/data/.test(compose));
 t('sharechaind publishes to the pool relay', /RELAYS:\s*wss:\/\/relay\.hashoid\.io/.test(shareBlock));
 t('sharechaind on the BITCOIN network tag (spec default)', /NETWORK:\s*bitcoin/.test(shareBlock));
 t('sharechaind speaks plain sha256d (no fork binding)', /CHAIN_KIND:\s*sha256d/.test(shareBlock));
