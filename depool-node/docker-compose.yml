@@ -227,7 +227,9 @@ services:
       # that makes them land on umbrelOS's own containers
       COMPOSE_PROJECT_NAME: depool-node
       COMPOSE_DIR: /depool
-      AUTOPAY_SERVICE_FEE: ""
+      # ⚠ NO MONEY-OFF FLAG AT ALL (Damon 2026-09-17, one-artefact law):
+      # AUTOPAY_SERVICE_FEE was a fee-off latch; the sidecar has no such
+      # env read any more. The cap stays a constant.
       SERVICE_FEE_CAP_PPM: "3000"
       BILL_MS: "3600000"
     volumes:

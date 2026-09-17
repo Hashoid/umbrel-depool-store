@@ -162,6 +162,12 @@ async function main() {
   // Docker socket access is effectively host-root access"). Control reaches the
   // chain over RPC and CLN over its own socket instead.
   t('no host Docker socket anywhere', !/docker\.sock/.test(live(compose)));
+  // ⚠ NO MONEY-OFF FLAG AT ALL (Damon 2026-09-17, one-artefact law): the app
+  // compose shipped AUTOPAY_SERVICE_FEE: "" — a fee-off latch in the artefact
+  // itself. The sidecar has no such env read any more, and the shipped compose
+  // must not carry one.
+  t('⚠ no fee-off latch rides the app compose', !/AUTOPAY/.test(live(compose)));
+  t('…the fee cap stays a constant', /SERVICE_FEE_CAP_PPM:\s*"3000"/.test(compose));
 
   // ── THE CHAIN IS THE USER'S BITCOIN NODE (Damon's ruling, 2026-09-13) ──
   t('the manifest depends on the bitcoin app', /^dependencies:\n\s+- bitcoin$/m.test(app));
