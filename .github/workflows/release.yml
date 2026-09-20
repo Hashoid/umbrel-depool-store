@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VER: ${{ inputs.version }}
-      GH: ghcr.io/lstgms9
+      GH: ghcr.io/hashoid
       ORIGIN: https://hashoid.io
       IMAGES: depool-cln depool-bootstrap depool-sharechaind depool-control depool-stratum depool-relay
     steps:
@@ -75,9 +75,6 @@ jobs:
       - name: Pin the compose + lock
         run: |
           set -e
-          for img in $IMAGES; do
-            sed -i "s#ghcr.io/lstgms9/$img:v[0-9.]*#ghcr.io/lstgms9/$img:$VER#g" depool-node/docker-compose.yml
-          done
           node -e '
             const fs = require("fs"), { execSync } = require("child_process");
             const names = process.env.IMAGES.split(" ");
@@ -90,10 +87,23 @@ jobs:
               lock[n] = { tag: ver, digest: d };
             }
             fs.writeFileSync("release/images-lock.json", JSON.stringify(lock, null, 1) + "\n");
+            // ⚠ TAG **AND** DIGEST, TOGETHER (2026-09-13): the sed this replaces
+            // rewrote only the tag and left the digest the line already carried,
+            // so a release pinned the NEW tag to the PREVIOUS image — and the
+            // app compose is digest-pinned precisely so that cannot happen.
+            // Both files: the app compose and the regtest overlay (bootstrap).
+            for (const f of ["depool-node/docker-compose.yml", "depool-node/docker-compose.regtest.yml"]) {
+              let yml = fs.readFileSync(f, "utf8");
+              for (const n of names) {
+                const re = new RegExp("ghcr\\.io/[a-z0-9-]+/" + n + ":v[0-9.]+(?:@sha256:[0-9a-f]{64})?", "g");
+                yml = yml.replace(re, `${gh}/${n}:${ver}@${lock[n].digest}`);
+              }
+              fs.writeFileSync(f, yml);
+            }
           '
           git config user.name "depublish-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add depool-node/docker-compose.yml release/images-lock.json
+          git add depool-node/docker-compose.yml depool-node/docker-compose.regtest.yml release/images-lock.json
           git commit -m "[release] $VER images pushed + pinned (amd64+arm64)" || echo "nothing to commit"
           git push
 
