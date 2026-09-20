@@ -21,7 +21,7 @@ FROM node:20-slim
 WORKDIR /app
 RUN npm install --omit=dev ws@8
 # ws resolves from the mounted tree's search path (the tree is read-only in
-# the mount case, so the dependency comes from here) — see protocol/resolve-dep.js.
+# the mount case, so the dependency comes from here) — see lib/vendor/resolve-dep.js.
 ENV NODE_PATH=/app/node_modules
 COPY modules /modules
 ENV DATA_DIR=/data
