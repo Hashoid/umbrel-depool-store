@@ -25,7 +25,7 @@ in the app's liveness path; unknown rather than "starting…" forever).
 ## WHAT THIS DOES NOT CLAIM
 
 **The chain is not real.** This rig is a dev-only community store
-(`lstgms9/umbrel-btc-rig`, public, unlisted) whose app deliberately uses the id
+(public, unlisted) whose app deliberately uses the id
 `bitcoin` and runs a **regtest** bitcoind. It proves the app_proxy/umbreld path
 — install, dependency resolution, the page opening inside umbrelOS, and the
 page's readings — and nothing about mainnet.
