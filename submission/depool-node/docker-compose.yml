@@ -1,40 +1,39 @@
-# depool-node — the depool stack as a one-click Umbrel app.
+# depool-node — the depool stack as a one-click Umbrel app. v0.3.0.
 #
-# v0.2.2 — MAINNET-FIRST (Damon 2026-08-31 spec reframe: "depool is a
-# payout-coordination protocol for any SHA-256 Bitcoin, mainnet-first.
-# There is no depool chain"). The blake2b fork was the cheap test ground;
-# THIS app mines real Bitcoin:
-#   (chain)      THE USER'S BITCOIN NODE — the Umbrel Bitcoin Node app, used
-#                as a dependency. It is the template source (getblocktemplate)
-#                for the ASIC's shares and the Lightning settlement chain. No
-#                second copy of the chain is ever downloaded by this app.
-#   cln          real-sats Lightning; payouts from the pool prime land on
-#                the miner's BOLT12 offer
-#   stratum      where the ASIC points (LAN :23333 — 3333 is taken in the
-#                official store, the container still listens on 3333)
-#                same node — template sovereignty, your node your rules (spec §7.1)
-#   sharechaind  the bead DAG + payout commitment, network tag "bitcoin"
-#   relay        local archival relay; the pool relay (relay.hashoid.io)
-#                carries the live shares
-#   control      the node page + the hashoid heartbeat (claim-first pairing)
-# No bootstrap one-shot: nothing to fund on mainnet — the user deposits
-# real sats through the on-chain card (control /onchain) when they want the
-# payout rail loaded. There is no blake2b, no regtest, no fork anywhere in
-# this file.
+# ⚠ TWO CONTAINERS, THE THREE-PIECE PRODUCT (Damon's ruling, 2026-09-20): the
+# depool box IS one program — the rig door (stratum), the bead line, the block
+# builder, the status page and the claim/hello wire are listeners in ONE
+# process, modules/mod-depool/box/box.js. v0.2.x shipped the OLD shape as six
+# containers (stratum + sharechaind + control + relay + cln-payer + cln-payee);
+# three of those images could no longer be built from any existing source
+# (stack/stratum, stack/sharechaind, stack/control all died in the 2026-09-18
+# whittle) and the app's ASIC port was published by the dead one. v0.3.0 is
+# what the plain-Linux box bundle runs: a chain, a box, a wallet.
+#
+#   (chain)  THE USER'S BITCOIN NODE — the Umbrel Bitcoin Node app, used as a
+#            dependency. It is the template source (getblocktemplate) for the
+#            ASIC's shares and the Lightning settlement chain. No second copy of
+#            the chain is ever downloaded by this app.
+#   box      depool-box: the box program with the modules tree baked (an Umbrel
+#            has no platform checkout). Serves the ASIC on 23333, serves the
+#            page on 28700 (the umbrelOS Open button), heartbeats the tenant AND
+#            says hello at enrol — the wire that makes a store box claimable.
+#   cln      the miner's wallet: the payout address is minted from it at boot
+#            (listfunds → newaddr) and a BOLT12 offer is published from it, so
+#            the provider can pay this box over Lightning.
 #
 # Umbrel deltas (why this file differs from mod-btc/stack/docker-compose.yml):
-#   1. images: pinned ghcr.io/hashoid/* (built multi-arch by the repo's
-#      release workflow) — Umbrel pulls, it never builds
+#   1. images: pinned ghcr.io/hashoid/* (multi-arch, digest-pinned) — Umbrel
+#      pulls, it never builds
 #   1b. the chain comes from the `bitcoin` dependency app (manifest
 #      `dependencies: [bitcoin]`), never from a second bitcoind in here
 #   2. volumes: binds under ${APP_DATA_DIR}/data (umbrelOS validates)
-#   3. the /modules tree is BAKED into depool-sharechaind (an Umbrel box has
-#      no platform checkout)
-#   4. box identity: HARDWARE_ID from ${APP_SEED} (deterministic per
-#      install) — claim-first pairing works untouched
-#   5. control reaches the chain over RPC (the dependency node) and CLN over
-#      its own unix socket — never `docker exec` into another app's container,
-#      and never the host Docker socket (umbrelOS forbids that mount)
+#   3. the /modules tree is BAKED into depool-box
+#   4. box identity: HARDWARE_ID from ${APP_SEED} (deterministic per install) —
+#      claim-first pairing works untouched
+#   5. the box reaches the chain over RPC (the dependency node) and CLN over its
+#      own unix socket — never `docker exec` into another app's container, and
+#      never the host Docker socket (umbrelOS forbids that mount)
 # A regtest overlay for dev/harness lives beside this file
 # (docker-compose.regtest.yml) — umbrelOS never sees it.
 #
@@ -47,45 +46,25 @@
 version: "3.7"
 
 services:
-  # the umbrelOS auth proxy — "Open" in the app drawer lands on the control
-  # API (the same 127.0.0.1:28700 JSON surface the bare-metal node page uses)
+  # the umbrelOS auth proxy — "Open" in the app drawer lands on the box's own
+  # status page (the same 127.0.0.1:28700 surface the bare-metal node page uses)
   app_proxy:
     environment:
-      APP_HOST: depool-node_control_1
+      APP_HOST: depool-node_box_1
       APP_PORT: "28700"
 
-  # ── THE CHAIN IS THE USER'S OWN BITCOIN NODE (Damon, 2026-09-13) ──
-  # No bitcoind service here, deliberately. If the user has the Umbrel Bitcoin
-  # Node app we USE THEIRS: `dependencies: [bitcoin]` in the manifest, and
-  # umbrelOS exports the contract below (see that app's exports.sh) — node IP,
-  # RPC port/user/pass, network, and its data dir for a read-only mount. One
-  # node, one chain, one copy of the blocks: no second download, no multi-day
-  # sync started silently behind the user's back, and the pruned/full choice
-  # stays the user's (a pruned node mines fine — getblocktemplate does not need
-  # old blocks, and CLN only needs RPC).
-  #
-  #   APP_BITCOIN_NODE_IP        the node's IP on the Umbrel app network
-  #   APP_BITCOIN_RPC_PORT       its RPC port (8332)
-  #   APP_BITCOIN_RPC_USER/PASS  the credentials it generated for consumers
-  #   APP_BITCOIN_DATA_DIR       its datadir on the host (mount read-only)
-  #   APP_BITCOIN_NETWORK        mainnet | testnet | signet | regtest
-  #
-  # When the node is NOT there: on Umbrel the dependency prompt IS the ask
-  # (umbrelOS refuses the install until Bitcoin Node is installed — the user
-  # answers it before anything syncs). On the plain Linux path (stack/install.sh)
-  # the installer asks outright: use an existing node, or we place a PRUNED
-  # chain seeded from ours and the box CONTINUES from it. A from-zero download
-  # is never acceptable. hashOS appliances ship the seed baked.
-
   # ── Lightning (real sats): the miner's payout rail ──
-  # cln-payer and cln-payee as on the stack; on mainnet no --developer, and
+  # CLN on the user's own node; on mainnet no --developer, and
   # bitcoin-retry-timeout covers the days-long chain sync. The bitcoin-cli
-  # wrapper inside the image targets the bitcoin app's node via env (BCLI_*), so the
-  # same image also serves the regtest dev overlay.
-  cln-payer:
-    image: ghcr.io/hashoid/depool-cln:v0.2.9@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
+  # wrapper inside the image targets the bitcoin app's node via env (BCLI_*), so
+  # the same image also serves the regtest dev overlay. ⚠ ONE node, not the
+  # payer/payee pair v0.2.x ran: the payer was the provider's side (it belongs
+  # to the provider, not to a miner's box) and the payee had no consumer left
+  # once the box program held the whole line.
+  cln:
+    image: ghcr.io/hashoid/depool-cln:v0.3.0@sha256:9e6d6c2c08b07171d27c4929c909878a720be301af0146f2e4dbfb86bf30a4c9
     command: >
-      --network=${CLN_NET:-bitcoin} --lightning-dir=/root/.lightning-payer
+      --network=${CLN_NET:-bitcoin} --lightning-dir=/root/.lightning
       --bitcoin-datadir=/home/bitcoin/.bitcoin
       --bitcoin-cli=/usr/local/bin/bitcoin-cli
       --bitcoin-rpcuser=${APP_BITCOIN_RPC_USER} --bitcoin-rpcpassword=${APP_BITCOIN_RPC_PASS}
@@ -96,7 +75,7 @@ services:
       BCLI_CONNECT: ${APP_BITCOIN_NODE_IP}
       BCLI_PORT: "${APP_BITCOIN_RPC_PORT}"
     volumes:
-      - ${APP_DATA_DIR}/data/cln-payer:/root/.lightning-payer
+      - ${APP_DATA_DIR}/data/cln:/root/.lightning
       - ${APP_BITCOIN_DATA_DIR}:/home/bitcoin/.bitcoin:ro
     depends_on: []
     restart: on-failure
@@ -105,167 +84,69 @@ services:
         soft: 524288
         hard: 524288
 
-  cln-payee:
-    image: ghcr.io/hashoid/depool-cln:v0.2.9@sha256:04f8eb3f8487a08f30088364778c05909c81c5ec5f08ce39ad7038ff02329fcb
-    command: >
-      --network=${CLN_NET:-bitcoin} --lightning-dir=/root/.lightning-payee
-      --bitcoin-datadir=/home/bitcoin/.bitcoin
-      --bitcoin-cli=/usr/local/bin/bitcoin-cli
-      --bitcoin-rpcuser=${APP_BITCOIN_RPC_USER} --bitcoin-rpcpassword=${APP_BITCOIN_RPC_PASS}
-      --bitcoin-rpcconnect=${APP_BITCOIN_NODE_IP} --bitcoin-rpcport=${APP_BITCOIN_RPC_PORT}
-      --bitcoin-retry-timeout=3600
-      --addr=0.0.0.0:9735 --disable-plugin=cln-grpc --log-level=info
+  # ── THE BOX: one program, three listeners ─────────────────────────────────
+  # The rig door (the ASIC points at LAN:23333), the bead line and the page are
+  # IN-PROCESS. It builds jobs from THIS box's node via getblocktemplate
+  # (template sovereignty, spec §7.1), mints beads for the shares it admits,
+  # closes windows and submits blocks straight back to the network.
+  box:
+    image: ghcr.io/hashoid/depool-box:v0.3.0@sha256:181aafd0f06c282a01072a6c0ef8f130b63a143f4eb7021323eff62e26e86657
     environment:
-      BCLI_CONNECT: ${APP_BITCOIN_NODE_IP}
-      BCLI_PORT: "${APP_BITCOIN_RPC_PORT}"
-    volumes:
-      - ${APP_DATA_DIR}/data/cln-payee:/root/.lightning-payee
-      - ${APP_BITCOIN_DATA_DIR}:/home/bitcoin/.bitcoin:ro
-    depends_on: []
-    restart: on-failure
-    ulimits:
-      nofile:
-        soft: 524288
-        hard: 524288
-
-  # local archival relay (loopback only — live shares ride the pool relay)
-  relay:
-    image: ghcr.io/hashoid/depool-relay:v0.2.9@sha256:8abcd5dc65c36ebbda0ddda7aed34ff3898af2ac374c28e87db2aed47c3e0bf3
-    volumes:
-      - ${APP_DATA_DIR}/data/relay:/var/lib/strfry
-    # no host publish: same-app traffic uses the compose network (Docker DNS),
-    # and an App Store package should not claim a host port it does not need
-    restart: on-failure
-    ulimits:
-      nofile:
-        soft: 524288
-        hard: 524288
-
-  # ── the sharechain daemon — the bead DAG + payout commitment ──
-  sharechaind:
-    image: ghcr.io/hashoid/depool-sharechaind:v0.2.9@sha256:6b9f5832408d2a5dea7b48b4cd0a85b11ae8b5a132330b68b9dfb8209225d3dc
-    cpus: 0.5
-    environment:
-      # the tenant bundle's values with the MAINNET network tag (spec: the
-      # network names the chain being mined; default "bitcoin")
+      # the pool relay carries the live line; a home box has no second node
       RELAYS: wss://relay.hashoid.io/ws/
       NETWORK: bitcoin
-      DEPOOL_MODE: smooth
-      DEPOOL_POWER: low
-      # node role — the user's ASIC does the hashing, through stratum below
-      DEPOOL_GRIND: "0"
-      LOTTERY_BITS: "26"
-      LOTTERY_TARGET: "1"
-      POW_BITS: "21"
-      BEADS_TARGET: "6"
-      BLOCK_EVERY: "3"
-      CHAIN_RPC: http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
-      CHAIN_RPC_USER: ${APP_BITCOIN_RPC_USER}
-      CHAIN_RPC_PASS: ${APP_BITCOIN_RPC_PASS}
+      # the MINING net (the journal's `net`) and the chain kind the PoW follows
+      MINING_NET: sha256d
       CHAIN_KIND: sha256d
-      BLOCK_TRIES: "500000"
-      REWARD_SATS: "30000"
-      CLN_RPC: /run/cln/${CLN_NET:-bitcoin}/lightning-rpc
-      CLN_PAYEE_RPC: /run/cln-payee/${CLN_NET:-bitcoin}/lightning-rpc
-      # ⚠ THE BUILDER ROLE IS ON (uniMaster ruling 2026-09-13): a lined daemon
-      # that is not the builder mints beads and NEVER closes a window — no
-      # block, no payout, ever. On this box the daemon IS the miner's own
-      # builder (template sovereignty, §7.1) and it is the only lined daemon
-      # here, so the one-builder-per-line law holds.
-      LINE_BUILD: "1"
-      # ⚠ AND THE BEAD MUST NAME AN ADDRESS (same ruling): the daemon refuses to
-      # boot without one and no compose can know it — it is minted at runtime
-      # from the box's own CLN wallet. The control sidecar mints it and writes
-      # it to the shared data dir (/data/self-payout-addr, which every box has);
-      # this line is the OVERRIDE for a user who wants a specific address.
-      SELF_PAYOUT_ADDR: ${SELF_PAYOUT_ADDR:-}
-    volumes:
-      - ${APP_DATA_DIR}/data/miner:/data
-      - ${APP_DATA_DIR}/data/cln-payer:/run/cln
-      - ${APP_DATA_DIR}/data/cln-payee:/run/cln-payee
-    depends_on:
-      relay:
-        condition: service_started
-      cln-payer:
-        condition: service_started
-      cln-payee:
-        condition: service_started
-    restart: on-failure
-    ulimits:
-      nofile:
-        soft: 524288
-        hard: 524288
-
-  control:
-    image: ghcr.io/hashoid/depool-control:v0.2.9@sha256:f17b33af51a5b6e1a5fa1df727f8a3a1dfde91bd3f066d86f7aaddd48b54bb5d
-    environment:
-      ORIGIN: https://hashoid.io
-      # deterministic per-install (umbrelOS derives it from the store seed) —
-      # the box shows up unclaimed on the hashoid Mine page, the user names it
-      HARDWARE_ID: hw-umbrel-${APP_SEED}
-      NODE_HOST: ${DEVICE_HOSTNAME:-umbrel}
-      DEPOOL_POWER: low
-      NETWORK: bitcoin
-      # the rails, retargeted at the USER'S node (control.js talks JSON-RPC to
-      # it directly — no docker exec into another app's container, and no host
-      # Docker socket, which umbrelOS forbids mounting)
-      CHAIN_RPC_URL: http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
-      CHAIN_RPC_USER: ${APP_BITCOIN_RPC_USER}
-      CHAIN_RPC_PASS: ${APP_BITCOIN_RPC_PASS}
-      # from the app's own exports.sh, which maps the NODE's network
-      # (APP_BITCOIN_NETWORK) into CLN's vocabulary
-      CLN_NET: ${CLN_NET:-bitcoin}
-      CLN_PAYER_DIR: /run/cln
-      # the ASIC-facing host port (the app page prints it; the container's own
-      # listener stays 3333)
-      STRATUM_PORT: "23333"
-      CLN_PAYEE_DIR: /run/cln-payee
-      # umbrelOS runs every app under --project-name <app id>; control keeps
-      # the project name so the pages it serves can name the box's own
-      # containers (start/stop on our own Linux stacks — never for liveness,
-      # which reads each service directly and never touches docker)
-      COMPOSE_PROJECT_NAME: depool-node
-      COMPOSE_DIR: /depool
-      # ⚠ NO MONEY-OFF FLAG AT ALL (Damon 2026-09-17, one-artefact law):
-      # AUTOPAY_SERVICE_FEE was a fee-off latch; the sidecar has no such
-      # env read any more. The cap stays a constant.
-      SERVICE_FEE_CAP_PPM: "3000"
-      BILL_MS: "3600000"
-    volumes:
-      # ⚠ THE HOST DOCKER SOCKET IS DELIBERATELY NOT MOUNTED (umbrelOS: "host
-      # Docker socket access is effectively host-root access"). The app does not
-      # need it: the chain is the dependency node over RPC, and CLN is reached
-      # through its own unix socket below.
-      # /depool holds the SAME compose file (baked into the image at release
-      # time) for the wallet's compose reference, never used to up/down.
-      - ${APP_DATA_DIR}/data/miner:/data
-      - ${APP_DATA_DIR}/data/cln-payer:/run/cln
-      - ${APP_DATA_DIR}/data/cln-payee:/run/cln-payee
-    depends_on:
-      - sharechaind
-    restart: on-failure
-    ulimits:
-      nofile:
-        soft: 524288
-        hard: 524288
-
-  # ── stratum — where the user's ASIC points (LAN-exposed on 23333) ──
-  # Jobs come from THIS box's bitcoind via getblocktemplate: the user mines
-  # their own templates (spec §7.1 template sovereignty), shares join the
-  # sharechain, blocks submit straight back to the network.
-  stratum:
-    image: ghcr.io/hashoid/depool-stratum:v0.2.9@sha256:b933b0716a42431016f12206fd74b579b239413501d2ab19a3d490091cad54c1
-    environment:
-      STRATUM_PORT: "3333"
+      EVENT_CHAIN: bitcoin
       CHAIN_RPC: http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
       CHAIN_RPC_USER: ${APP_BITCOIN_RPC_USER}
       CHAIN_RPC_PASS: ${APP_BITCOIN_RPC_PASS}
-      SHARE_DIFF: "1"
-    ports:
-      - "0.0.0.0:23333:3333"
+      DATA_DIR: /data
+      # CLN's socket lives at <lightning-dir>/<network>/lightning-rpc; the box
+      # mints its own payout address from this wallet (listfunds → newaddr
+      # bech32) and adopts it live — a key that never leaves this box.
+      CLN_WALLET_DIR: /root/.lightning
+      CLN_NET: ${CLN_NET:-bitcoin}
+      # the ASIC-facing listener (the host side is 23333 below: 3333 is taken in
+      # the official store's host-port space) and the in-process door for any
+      # other rig that can reach the box
+      STRATUM_PORT: "3333"
+      INTAKE_PORT: "28918"
+      # the page umbrelOS opens: 0.0.0.0, because the proxy is another container
+      STATUS_PORT: "28700"
+      STATUS_HOST: 0.0.0.0
+      # the claim wire: the box registers at enrol (POST /api/btc/rigs/hello)
+      # with this identity and its wallet's payout address, so it shows up
+      # UNCLAIMED on hashoid.io → Mine and the user names it there.
+      ORIGIN: https://hashoid.io
+      HARDWARE_ID: hw-umbrel-${APP_SEED}
+      # the box's own payout address: minted from the wallet above; this is the
+      # operator's override for a miner who wants a specific address paid
+      SELF_PAYOUT_ADDR: ${SELF_PAYOUT_ADDR:-}
+      # ⚠ EVERY COINBASE THIS BOX SERVES PAYS THE PROVIDER (Damon's GO,
+      # 2026-09-16). Unset = this box IS its own provider and pays itself (a
+      # self-hosted pool). The provider's signed notice moves it once the lane's
+      # key below is configured.
+      PROVIDER_ADDR: ${PROVIDER_ADDR:-}
+      # the trust anchor: whose signed kind-7104 notice this box follows. Empty
+      # = it follows no notice and mines at BEAD_DIFFICULTY below.
+      DIFFICULTY_PUB: ${DIFFICULTY_PUB:-}
+      BEAD_DIFFICULTY: ${BEAD_DIFFICULTY:-19}
+      # the visible fee line the provider takes, if any (0 bps = none)
+      FEE_ADDR: ${FEE_ADDR:-}
+      FEE_BPS: ${FEE_BPS:-100}
     volumes:
       - ${APP_DATA_DIR}/data/miner:/data
-    depends_on: []
+      - ${APP_DATA_DIR}/data/cln:/root/.lightning
+    ports:
+      # ⚠ 3333 IS TAKEN in the official store's host-port space
+      # (bleskomat-server), so the HOST side moves; the container keeps its own
+      # listener.
+      - "0.0.0.0:23333:3333"
+    depends_on:
+      cln:
+        condition: service_started
     restart: on-failure
     ulimits:
       nofile:

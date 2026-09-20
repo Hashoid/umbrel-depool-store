@@ -2,12 +2,14 @@ manifestVersion: 1
 id: depool-node
 category: bitcoin
 name: Depool Node
-version: 0.2.9
+version: 0.3.0
 tagline: Mine with your own node — no pool in the middle
 description: >-
-  Mine Bitcoin with your own node, no pool in the middle. This app runs a
-  Stratum endpoint for your ASIC, the depool sharechain daemon, a local
-  share relay, and the Lightning wallet your payouts land in.
+  Mine Bitcoin with your own node, no pool in the middle. This app runs the
+  depool box — a Stratum endpoint for your ASIC (LAN port 23333), the bead line
+  the shares are recorded on, the block builder that closes a window and submits
+  the block, and the box's own status page — plus the Lightning wallet your
+  payouts land in.
 
 
   IT USES YOUR BITCOIN NODE. This app has no chain of its own: it requires
@@ -23,14 +25,16 @@ description: >-
   the Mine page at hashoid.io. Your shares are signed by this node; payouts
   settle over Lightning to your own wallet.
 releaseNotes: >-
-  The app now follows YOUR node's network instead of assuming mainnet: against
-  a regtest or testnet node the Lightning node used to refuse to start, which
-  cascaded into the daemon having no payout address. (Store-side fix — the
-  images are unchanged.) The app opens to its own page: your node's live status (chain, peers, sync)
-  and the exact pool URL for your ASIC, with the claim link. It also now
-  builds windows and submits real blocks on YOUR node — the block builder had
-  only ever spoken the fork chain's header format, so every block a stock
-  Bitcoin node was sent came back refused. Multi-arch (arm64 included).
+  THE BOX IS ONE PROGRAM NOW. Two containers, the same three pieces as every
+  depool install: your Bitcoin node (the dependency), the box, and its wallet.
+  The old stratum, sharechain, control and relay containers are gone —
+  their jobs are listeners inside the box program, so an install is smaller and
+  there is no way for two containers to disagree about one revision of the code.
+  This release also carries the CLAIM WIRE: the box registers at enrol, so it
+  appears unclaimed on hashoid.io → Mine and you name it there (before this,
+  a store box could only heartbeat). And it fixes the box image itself: the
+  previous one booted a path the code no longer has. Multi-arch (arm64
+  included).
 dependencies:
   - bitcoin
 developer: Depool

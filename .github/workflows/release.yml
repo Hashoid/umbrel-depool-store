@@ -1,6 +1,6 @@
 # release.yml — push the depool images for the app store to ghcr.io,
 # MULTI-ARCH (linux/amd64 + linux/arm64 — most Umbrels are Raspberry Pis).
-# Manual: Actions → release → Run workflow (input: version, e.g. v0.2.0).
+# Manual: Actions → release → Run workflow (input: version, e.g. v0.3.0).
 #
 # Why CI and not the dev box: the dev box's fine-grained PAT cannot write
 # packages; this workflow's GITHUB_TOKEN gets packages:write for free.
@@ -9,21 +9,27 @@
 # images.tar.gz either: everything builds FROM SOURCE under buildx, so both
 # architectures come from the same Dockerfiles.
 #
-# Image set (v0.2.0, mainnet-first — the app's compose is the contract):
+# Image set (v0.3.0, the two-container shape — the app's compose is the contract):
+#   depool-box          the box program with the modules tree baked (base:
+#                       ghcr.io/hashoid/depool-lined, the canon image)
 #   depool-cln          CLN + env-driven bitcoin-cli wrapper (multi-arch bases)
-#   depool-bootstrap    regtest-only one-shot (dev overlay; not in the app)
-#   depool-sharechaind  node:20-slim + baked modules tree
-#   depool-control      alpine + docker-cli/compose + baked app compose
-#   depool-stratum      node:20-slim (bundle Dockerfile)
-#   depool-relay        strfry 1.1.1 source build (arm64 under qemu)
+#   depool-relay        strfry 1.1.1 source build (arm64 under qemu) — used by
+#                       the regtest dev OVERLAY only; the app publishes to the
+#                       pool relay
+# ⚠ THE v0.2.x SET IS GONE WITH ITS SOURCES (2026-09-20): depool-stratum built
+# from bundle/modules/mod-depool/stack/stratum/Dockerfile, a path the 2026-09-18
+# whittle deleted; depool-sharechaind and depool-control built from
+# stack/sharechaind and stack/control, both gone. The box program absorbed all
+# three. A release that still named them failed at the first bx call.
 # The chain node itself is upstream bitcoin/bitcoin:29 — multi-arch already,
-# referenced directly by the app compose, nothing for us to build.
+# referenced directly by the app compose (the dependency app's node), nothing
+# for us to build.
 name: release
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'image version tag, e.g. v0.2.0'
+        description: 'image version tag, e.g. v0.3.0'
         required: true
 permissions:
   contents: write
@@ -35,7 +41,7 @@ jobs:
       VER: ${{ inputs.version }}
       GH: ghcr.io/hashoid
       ORIGIN: https://hashoid.io
-      IMAGES: depool-cln depool-bootstrap depool-sharechaind depool-control depool-stratum depool-relay
+      IMAGES: depool-box depool-cln depool-relay
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3        # arm64 emulation for the source builds
@@ -47,8 +53,8 @@ jobs:
           curl -fsSL "$ORIGIN/api/btc/stack/bundle" -o bundle.tgz
           mkdir bundle && tar -xzf bundle.tgz -C bundle stack modules
           cp depool-node/docker-compose.yml bundle/docker-compose.yml
-          cp release/control.env bundle/control.env
-          ls bundle/modules/mod-btc/lib bundle/modules/mod-chat/lib
+          cp depool-node/docker-compose.regtest.yml bundle/docker-compose.regtest.yml
+          ls bundle/modules/mod-depool/box bundle/modules/mod-btc/lib bundle/modules/mod-chat/lib
           # strfry's source build pins -j2; under qemu any parallelism helps
           sed -i 's/make -j2/make -j$(nproc)/' bundle/stack/relay/Dockerfile
 
@@ -56,19 +62,15 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       # ── build both architectures FROM SOURCE, push as one manifest list ──
-      - name: Build + push the six images (amd64 + arm64)
+      - name: Build + push the three images (amd64 + arm64)
         run: |
           set -e
           bx() { docker buildx build --platform linux/amd64,linux/arm64 --push "$@"; }
+          # ⚠ THE BOX IS THE CANON IMAGE PLUS A TREE, not a second program: the
+          # base is mod-depool's own published box image, so the rig door, the
+          # line, the page and the hello wire are the bytes every install runs.
+          bx -f release/Dockerfile.box-umbrel        -t $GH/depool-box:$VER        bundle
           bx -f release/Dockerfile.cln-umbrel        -t $GH/depool-cln:$VER        bundle
-          bx -f release/Dockerfile.bootstrap-umbrel  -t $GH/depool-bootstrap:$VER  bundle
-          bx -f release/Dockerfile.sharechaind-umbrel -t $GH/depool-sharechaind:$VER bundle
-          bx -f release/Dockerfile.control-umbrel    -t $GH/depool-control:$VER    bundle
-          # ⚠ stratum's source moved with the stack consolidation (v0.2.2,
-          # 2026-09-13): it lives in the modules tree now, like sharechaind.
-          # The old bundle/stack/stratum path stopped existing and took the
-          # whole release down with it.
-          bx -f bundle/modules/mod-depool/stack/stratum/Dockerfile -t $GH/depool-stratum:$VER bundle/modules/mod-depool/stack/stratum
           bx -f bundle/stack/relay/Dockerfile        -t $GH/depool-relay:$VER      bundle/stack/relay
 
       # ── the version pins in the app compose must match what we just pushed ──
@@ -91,7 +93,8 @@ jobs:
             // rewrote only the tag and left the digest the line already carried,
             // so a release pinned the NEW tag to the PREVIOUS image — and the
             // app compose is digest-pinned precisely so that cannot happen.
-            // Both files: the app compose and the regtest overlay (bootstrap).
+            // Both files: the app compose and the regtest overlay (its chain and
+            // its relay are pinned there too).
             for (const f of ["depool-node/docker-compose.yml", "depool-node/docker-compose.regtest.yml"]) {
               let yml = fs.readFileSync(f, "utf8");
               for (const n of names) {

@@ -75,9 +75,16 @@ async function main() {
     if (m) t('image is in the lock: ' + m[1], lock[m[1]] && lock[m[1]].tag === m[2] && lock[m[1]].digest === m[3]);
   }
   // ⚠ NO CHAIN IMAGE HERE (Damon 2026-09-13): the chain is the user's Bitcoin
-  // Node app, a DEPENDENCY. Six of ours, no second bitcoin node.
-  t('six depool image lines, five images, NO bundled bitcoin node',
-    images.length === 6 && new Set(images).size === 5 && !/bitcoin\/bitcoin/.test(compose), images.join(' '));
+  // Node app, a DEPENDENCY.
+  // ⚠ TWO CONTAINERS, THE THREE-PIECE PRODUCT (Damon's ruling, 2026-09-20):
+  // the box IS the program — rig door, bead line, block builder, page and the
+  // claim/hello wire are listeners in ONE process — and the wallet is one CLN.
+  // v0.2.x's six (stratum + sharechaind + control + relay + cln-payer +
+  // cln-payee) are gone WITH THEIR SOURCES: three of those images could no
+  // longer be built from anything in the tree, and the ASIC port was published
+  // by the dead one.
+  t('two depool image lines, two images, NO bundled bitcoin node',
+    images.length === 2 && new Set(images).size === 2 && !/bitcoin\/bitcoin/.test(compose), images.join(' '));
 
   // ── the release workflow must build from sources that still exist ──
   // ⚠ v0.2.2 (2026-09-13): the v0.2.1 image never built — the workflow still
@@ -89,7 +96,7 @@ async function main() {
   {
     const ci = R('.github/workflows/release.yml');
     const lines = [...ci.matchAll(/bx -f (\S+)/g)].map((m) => m[1]);
-    t('the workflow builds the six images', lines.length === 6, lines.join(' '));
+    t('the workflow builds the three images (box, cln, relay)', lines.length === 3, lines.join(' '));
     // the bundle's stack/ is mod-btc's stack/ and its modules/ is the module
     // checkouts — both are siblings on a platform checkout, so the workflow's
     // sources can be checked against the trees that produce them. A path that
@@ -121,13 +128,19 @@ async function main() {
     const withImage = blocks.filter((b) => /^\s+image:/m.test(b));
     const named = (b) => b.split(':')[0].trim();
     t('every service with an image carries ulimits (' + withImage.length + ' services)',
-      withImage.length === 6,
+      withImage.length === 2,
       withImage.map(named).join(','));
     t('…and every one of them is nofile soft=hard=524288 (not the Docker default 1024)',
       withImage.every((b) => /ulimits:\n\s+nofile:\n\s+soft: 524288\n\s+hard: 524288/.test(b)),
       withImage.filter((b) => !/ulimits:\n\s+nofile:\n\s+soft: 524288\n\s+hard: 524288/.test(b)).map(named).join(','));
-    t('the overlay does not silently unset it (it adds a service, never overrides ulimits)',
-      !/ulimits/.test(overlay));
+    // ⚠ THE OVERLAY ADDS SERVICES (the chain, the local relay) AND THEY CARRY
+    // THE SAME LIMIT: v0.3.0's overlay is the only place those two exist, so an
+    // added service without nofile would be the one unprotected container in
+    // the harness.
+    const added = overlay.split(/\n(?=  [a-z][a-z0-9_-]*:\n)/).slice(1).filter((b) => /^  (bitcoind|relay):/.test(b));
+    t('…and the services the overlay ADDS carry it too (' + added.length + ')',
+      added.length === 2 && added.every((b) => /ulimits:\n\s+nofile:\n\s+soft: 524288\n\s+hard: 524288/.test(b)),
+      added.map((b) => b.split(':')[0].trim()).join(','));
   }
 
   // ── the app version IS the lock's version (what ships exists on the registry) ─
@@ -145,12 +158,13 @@ async function main() {
       cmp(appVer, lockTags[0]) >= 0, 'app ' + appVer + ' vs lock ' + lockTags.join(','));
   }
   for (const name of Object.keys(lock)) {
-    // bootstrap is overlay-only (the mainnet app has no bootstrap service) —
-    // its pin lives in the regtest overlay, everything else in the app compose
-    const target = name === 'depool-bootstrap' ? overlay : compose;
+    // the relay is OVERLAY-ONLY (the app publishes to the pool relay; a
+    // throwaway regtest lane must not) — its pin lives in the regtest overlay,
+    // the box and the wallet in the app compose
+    const target = name === 'depool-relay' ? overlay : compose;
     t('lock entry pinned: ' + name, new RegExp('ghcr\\.io/hashoid/' + name + ':' + lock[name].tag).test(target));
   }
-  t('lock carries six images', Object.keys(lock).length === 6);
+  t('lock carries three images (box, cln, relay)', Object.keys(lock).length === 3);
 
   // ── umbreld validation rules (from umbreld app.ts) ──
   // every app-data bind stays under ${APP_DATA_DIR}/data; only the docker
@@ -167,7 +181,11 @@ async function main() {
   // itself. The sidecar has no such env read any more, and the shipped compose
   // must not carry one.
   t('⚠ no fee-off latch rides the app compose', !/AUTOPAY/.test(live(compose)));
-  t('…the fee cap stays a constant', /SERVICE_FEE_CAP_PPM:\s*"3000"/.test(compose));
+  // ⚠ THE FEE IS THE VISIBLE LINE AND THE PROVIDER'S SETTING (v0.3.0): the box
+  // splits with FEE_ADDR/FEE_BPS exactly as the lane does; there is no billing
+  // sidecar left to carry a cap.
+  t('…and the visible fee line is a constant the box splits with',
+    /FEE_BPS:\s*\$\{FEE_BPS:-100\}/.test(compose) && !/SERVICE_FEE_CAP_PPM/.test(compose));
 
   // ── THE CHAIN IS THE USER'S BITCOIN NODE (Damon's ruling, 2026-09-13) ──
   t('the manifest depends on the bitcoin app', /^dependencies:\n\s+- bitcoin$/m.test(app));
@@ -196,69 +214,71 @@ async function main() {
     /--bitcoin-rpcuser=\$\{APP_BITCOIN_RPC_USER\}/.test(compose));
   t('no bootstrap service in the app (mainnet onboarding = user deposits)', !/^  bootstrap:/m.test(compose));
 
-  // ── sharechaind: the tenant bundle values with the bitcoin network tag ──
-  const sc = compose.indexOf('sharechaind:');
-  const shareBlock = compose.slice(sc, compose.indexOf('control:'));
-  t('sharechaind is a NODE role (the ASIC does the hashing)', /DEPOOL_GRIND:\s*"0"/.test(shareBlock));
-  // ⚠ THE BUILDER ROLE AND THE PAYOUT ADDRESS (uniMaster ruling 2026-09-13):
-  // the daemon closes a window ONLY when LINE_BUILD=1 — without it a box mints
-  // beads forever and NEVER finds a block, so no payout ever happens; and it
-  // refuses to boot at all without SELF_PAYOUT_ADDR, which no compose can know
-  // (it is minted at runtime from the box's own CLN wallet, and the sidecar
-  // writes it to the shared /data dir — umbrelOS gives it no Docker socket to
-  // hand a running container a new env, so the file is the only wire here).
-  t('the daemon IS the builder — it closes windows on this box (LINE_BUILD=1)',
-    /LINE_BUILD:\s*"1"/.test(shareBlock));
-  t('the settlement address is declared and user-overridable', /SELF_PAYOUT_ADDR:\s*\$\{SELF_PAYOUT_ADDR:-\}/.test(shareBlock));
-  t('…and the sidecar can publish it: the data volume it writes is the daemon\'s /data',
-    /\$\{APP_DATA_DIR\}\/data\/miner:\/data/.test(compose));
-  t('sharechaind publishes to the pool relay', /RELAYS:\s*wss:\/\/relay\.hashoid\.io/.test(shareBlock));
-  t('sharechaind on the BITCOIN network tag (spec default)', /NETWORK:\s*bitcoin/.test(shareBlock));
-  t('sharechaind speaks plain sha256d (no fork binding)', /CHAIN_KIND:\s*sha256d/.test(shareBlock));
-  t('CLN rpc paths follow the network dir (bitcoin by default, else the node network)',
-    /CLN_RPC:\s*\/run\/cln\/\$\{CLN_NET:-bitcoin\}\/lightning-rpc/.test(shareBlock));
+  // ── THE BOX: one program, and every law the six-container shape carried ──
+  // The rig door, the bead line, the block builder, the page and the enrol
+  // (hello) wire are listeners in ONE process (mod-depool/box/box.js). The laws
+  // that used to be asserted on three different services are asserted here on
+  // the one that actually runs them.
+  const box = compose.slice(compose.indexOf('  box:'), compose.indexOf('app_proxy') === -1 ? compose.length : compose.length);
+  t('the box IS the builder — it closes windows on this box (always on, no latch)',
+    !/LINE_BUILD/.test(box) && /CHAIN_RPC:\s*http:\/\/\$\{APP_BITCOIN_NODE_IP\}/.test(box));
+  t('the settlement address is declared and user-overridable', /SELF_PAYOUT_ADDR:\s*\$\{SELF_PAYOUT_ADDR:-\}/.test(box));
+  t('…and the wallet it mints from is mounted where the box reads it',
+    /CLN_WALLET_DIR:\s*\/root\/\.lightning/.test(box) && /\$\{APP_DATA_DIR\}\/data\/cln:\/root\/\.lightning/.test(compose));
+  t('the box publishes to the pool relay', /RELAYS:\s*wss:\/\/relay\.hashoid\.io/.test(box));
+  t('the box is on the BITCOIN network tag (spec default)', /NETWORK:\s*bitcoin/.test(box));
+  t('the box speaks plain sha256d (no fork binding)', /CHAIN_KIND:\s*sha256d/.test(box) && /MINING_NET:\s*sha256d/.test(box));
+  // ⚠ THE CLAIM WIRE (Damon's order, 2026-09-20): the box registers at enrol
+  // with an APP_SEED-derived identity — the wire a store box was missing, which
+  // is why it could heartbeat but never be claimed.
+  t('the box heartbeats AND enrols (the hello wire)', /ORIGIN:\s*https:\/\/hashoid\.io/.test(box));
+  t('claim-first pairing via APP_SEED identity', /HARDWARE_ID:\s*hw-umbrel-\$\{APP_SEED\}/.test(box));
+  t('the box reaches the dependency node over RPC, never docker exec',
+    /CHAIN_RPC:\s*http:\/\/\$\{APP_BITCOIN_NODE_IP\}:\$\{APP_BITCOIN_RPC_PORT\}/.test(box) &&
+    /CHAIN_RPC_USER:\s*\$\{APP_BITCOIN_RPC_USER\}/.test(box) && !/docker\.sock/.test(box));
+  t('the box reads CLN through its own mounted socket', /CLN_NET:\s*\$\{CLN_NET:-bitcoin\}/.test(box) &&
+    /\/root\/\.lightning/.test(box));
+  t('the box owns its /data (the payout-address file lives there)', /\$\{APP_DATA_DIR\}\/data\/miner:\/data/.test(box));
   // ⚠ 3333 is taken in the official store's host-port space (bleskomat-server),
-  // so the HOST side moves; the container keeps its own listener.
-  t('stratum is the LAN endpoint on 23333 (host) → 3333 (container)', /0\.0\.0\.0:23333:3333/.test(compose));
+  // so the HOST side moves; the container keeps its own listener — and it is
+  // the BOX that publishes it now (v0.2.x had a dead stratum image doing it).
+  t('the box serves the ASIC on 23333 (host) → 3333 (container)', /0\.0\.0\.0:23333:3333/.test(box));
+  t('the box serves the page umbrelOS opens, on 0.0.0.0 (the proxy is another container)',
+    /STATUS_PORT:\s*"28700"/.test(box) && /STATUS_HOST:\s*0\.0\.0\.0/.test(box));
+  t('app_proxy routes the umbrelOS Open button to the BOX', /APP_HOST:\s*depool-node_box_1/.test(compose) && /APP_PORT:\s*"28700"/.test(compose));
 
-  const ctl = compose.slice(compose.indexOf('control:'), compose.indexOf('# ── stratum'));
-  t('control targets umbrelOS\'s compose project (app id)', /COMPOSE_PROJECT_NAME:\s*depool-node/.test(ctl));
-  t('control heartbeats the tenant', /ORIGIN:\s*https:\/\/hashoid\.io/.test(ctl));
-  t('claim-first pairing via APP_SEED identity', /HARDWARE_ID:\s*hw-umbrel-\$\{APP_SEED\}/.test(ctl));
-  t('control reaches the dependency node over RPC, not docker exec',
-    /CHAIN_RPC_URL:\s*http:\/\/\$\{APP_BITCOIN_NODE_IP\}:\$\{APP_BITCOIN_RPC_PORT\}/.test(ctl) &&
-    /CHAIN_RPC_USER:\s*\$\{APP_BITCOIN_RPC_USER\}/.test(ctl) &&
-    !/CHAIN_SVC:\s*bitcoind/.test(ctl));
-  t('control reads CLN through its own mounted socket', /CLN_NET:\s*\$\{CLN_NET:-bitcoin\}/.test(ctl) &&
-    /CLN_PAYER_DIR:\s*\/run\/cln/.test(ctl) && /\/run\/cln:\/run\/cln|data\/cln-payer:\/run\/cln/.test(ctl));
-  t('control tells the page the ASIC host port (23333 on Umbrel)', /STRATUM_PORT:\s*"23333"/.test(ctl));
-  t('app_proxy routes the umbrelOS Open button to control', /APP_HOST:\s*depool-node_control_1/.test(compose) && /APP_PORT:\s*"28700"/.test(compose));
+  // ── the wallet: one CLN, the miner's ──
+  const cln = compose.slice(compose.indexOf('  cln:'), compose.indexOf('  box:'));
+  t('one CLN node, and it is the miner\'s wallet (the payer/payee pair is gone)',
+    (compose.match(/^  cln:/m) || []).length === 1 && !/cln-payee|cln-payer/.test(live(compose)));
+  t('the wallet follows the NODE\'s network, never pinned',
+    /--network=\$\{CLN_NET:-bitcoin\}/.test(cln) && /\/root\/\.lightning/.test(cln));
 
   // ── the regtest overlay: dev-only, ONE sha256d chain, and CONTAINED ──
-  t('overlay is the SAME stock bitcoind on regtest (one chain, like the app)', !/forkd-blake2b/.test(overlay) && /-regtest/.test(overlay));
-  t('overlay keeps the service NAME bitcoind (control\'s CHAIN_SVC still lands)', (overlay.match(/^  bitcoind:/m) || []).length === 1);
+  t('overlay runs the stock bitcoind on regtest (the app takes the dependency app\'s node)',
+    !/forkd-blake2b/.test(overlay) && /bitcoin\/bitcoin:29/.test(overlay) && /-regtest/.test(overlay));
+  t('overlay keeps the service NAME bitcoind', (overlay.match(/^  bitcoind:/m) || []).length === 1);
   t('overlay keeps CHAIN_KIND sha256d (no fork anywhere)', /CHAIN_KIND:\s*sha256d/.test(live(compose)) && !/CHAIN_KIND:\s*blake2b/.test(overlay));
-  t('overlay has the bootstrap one-shot the app dropped', /^  bootstrap:/m.test(overlay));
+  t('overlay adds the relay the app takes from the pool', /^  relay:/m.test(overlay));
   t('overlay points regtest shares at the LOCAL relay only', /RELAYS:\s*ws:\/\/relay:7777/.test(overlay));
   t('overlay uses a throwaway network tag (never the live "bitcoin" cohort)', /NETWORK:\s*depool-umbrel-regtest/.test(overlay));
-  t('overlay retargets the control rails to regtest', /CLN_NET:\s*regtest/.test(overlay) && /-rpcport=18443/.test(overlay));
-  t('overlay pins bootstrap BCLI at the regtest chain with creds', /BOOTSTRAP_BCLI_ARGS:.*-rpcconnect=bitcoind.*-rpcpassword=depool/.test(overlay));
+  t('overlay retargets the wallet rails to regtest', /CLN_NET:\s*regtest/.test(overlay) && /-rpcport=18443/.test(overlay));
+  t('overlay sends the enrol dial through the host gateway (a dev ORIGIN is localhost)',
+    /REWRITE_LOOPBACK:\s*"1"/.test(overlay));
 
   // ── release pipeline: multi-arch, bundle-sourced ──
-  for (const f of ['Dockerfile.sharechaind-umbrel', 'Dockerfile.control-umbrel', 'Dockerfile.cln-umbrel', 'Dockerfile.bootstrap-umbrel']) {
+  for (const f of ['Dockerfile.box-umbrel', 'Dockerfile.cln-umbrel']) {
     t('release has ' + f, fs.existsSync(path.join(__dirname, '..', 'release', f)));
   }
+  // ⚠ THE BOX IMAGE IS THE CANON IMAGE PLUS A TREE — never a second program.
+  t('release/Dockerfile.box-umbrel builds FROM the canon box image (depool-lined)',
+    /^FROM ghcr\.io\/hashoid\/depool-lined:/m.test(R('release/Dockerfile.box-umbrel')) &&
+    /^COPY modules \/modules$/m.test(R('release/Dockerfile.box-umbrel')));
   const ci = R('.github/workflows/release.yml');
   const ciLive = live(ci);
   t('CI builds both architectures', /linux\/amd64,linux\/arm64/.test(ciLive));
   t('CI pushes manifest lists straight from buildx', /--push/.test(ciLive));
   t('CI sources from the tenant bundle (no images tarball)', !/images\.tar\.gz/.test(ciLive) && /api\/btc\/stack\/bundle/.test(ciLive));
-  // control reads power/mode/role from COMPOSE_DIR/.env — umbrelOS never
-  // writes one, so the node-role values must ride in the control image
-  const controlEnv = R('release/control.env');
-  t('control.env bakes the node role (grind off)', /DEPOOL_GRIND=0/.test(controlEnv));
-  t('control.env is copied to /depool/.env by its Dockerfile',
-    /COPY control\.env \/depool\/\.env/.test(R('release/Dockerfile.control-umbrel')));
   t('cln wrapper target is env-driven (one image, mainnet + regtest overlay)',
     /BCLI_CONNECT/.test(R('release/Dockerfile.cln-umbrel')));
 

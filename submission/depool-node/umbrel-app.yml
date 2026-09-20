@@ -2,13 +2,14 @@ manifestVersion: 1
 id: depool-node
 category: bitcoin
 name: Depool Node
-version: 0.2.9
+version: 0.3.0
 tagline: Mine with your own node — no pool in the middle
 description: >-
-  Mine Bitcoin with your own node and no pool in the middle. This app turns
-  your Umbrel into the pool itself: a Stratum endpoint for your ASIC, the
-  depool share daemon that builds the blocks, a local share relay, and the
-  Lightning wallet your payouts land in.
+  Mine Bitcoin with your own node and no pool in the middle. This app runs
+  the depool box — a Stratum endpoint for your ASIC on LAN port 23333, the bead
+  line your shares are recorded on, the block builder that closes a window and
+  submits the block, and the box's own page — plus the Lightning wallet your
+  payouts land in.
 
 
   IT USES YOUR BITCOIN NODE. There is no second copy of the blockchain here:

@@ -1,0 +1,21 @@
+# depool-box — THE BOX PROGRAM for an Umbrel, with ONE Umbrel delta: the
+# modules tree is BAKED instead of bind-mounted (an Umbrel box has no platform
+# checkout, and umbrelOS forbids the host docker socket a self-updating mount
+# would need).
+#
+# ⚠ IT IS THE CANONICAL IMAGE PLUS A TREE, NOT A SECOND PROGRAM (v0.3.0,
+# 2026-09-20): the base is modules/mod-depool/box/Dockerfile's own published
+# image (ghcr.io/hashoid/depool-lined), so the rig door, the door, the status
+# page, the bead line and the claim/hello wire are the SAME bytes a bare-metal
+# box runs. The tree lands at /modules — exactly the path the base image's CMD
+# resolves (/modules/mod-depool/box/box.js) — and one revision of it: a baked
+# program against a differently-revisioned rulebook is the skew that killed
+# every round on 2026-09-11 (baked box called the newly-async mintBead,
+# published a Promise, the relay answered "event is not an object").
+#
+# ⚠ WHY NOT MOUNT: every other service of this stack is a pinned GHCR image and
+# umbrelOS gives an app no checkout to bind. This is the same shape the retired
+# depool-sharechaind image had (it too ran box.js); v0.3.0 renamed it to what it
+# actually is, because "sharechaind" stopped being a thing the box runs.
+FROM ghcr.io/hashoid/depool-lined:v0.3.0
+COPY modules /modules
